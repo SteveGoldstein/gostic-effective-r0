@@ -1,0 +1,84 @@
+## ### Dockerfile with EpiNow2 package installed
+## ##         This is a complicated package installation so I'm sharing
+## ##         how I did it.
+
+## ### Starting with Dockerfile downloaded 9/22/2020 from
+## ##      https://raw.githubusercontent.com/rstudio/r-docker/master/3.6/centos7/Dockerfile
+
+ARG BASE_IMAGE=rstudio/r-base
+FROM ${BASE_IMAGE}:centos7
+
+ARG R_VERSION=3.6.3
+ARG OS_IDENTIFIER=centos-7
+
+### R installation
+RUN wget https://cdn.rstudio.com/r/${OS_IDENTIFIER}/pkgs/R-${R_VERSION}-1-1.x86_64.rpm && \
+    yum update -y && \
+    yum -y install epel-release && \
+    yum -y install ./R-${R_VERSION}-1-1.x86_64.rpm && \
+    yum clean all && \
+    ln -s /opt/R/${R_VERSION}/bin/R /usr/bin/R && \
+    ln -s /opt/R/${R_VERSION}/bin/Rscript /usr/bin/Rscript && \
+    ln -s /opt/R/${R_VERSION}/lib/R /usr/lib/R && \
+    rm R-${R_VERSION}-1-1.x86_64.rpm
+
+
+## FROM steveg53703/r_only:v0
+## ##### Install rpms needed for EpiNow2
+
+RUN  rpm --import http://li.nux.ro/download/nux/RPM-GPG-KEY-nux.ro  && \
+     rpm -Uvh http://li.nux.ro/download/nux/dextop/el7/x86_64/nux-dextop-release-0-5.el7.nux.noarch.rpm  && \
+     yum groups mark install "Development Tools"  && \
+     yum -y groupinstall "Development Tools" && \
+     yum -y install ffmpeg ffmpeg-devel     \
+                    openssl-devel           \
+		    proj-nad proj-epsg      \
+		    v8 v8-devel udunits2 udunits2-devel \
+		    gdal-devel geos-devel && \
+     yum clean all
+
+## FROM steveg53703/rpmlayer:v2
+
+### Set up CXX14 build environment
+RUN yum -y install centos-release-scl && \
+    yum -y install devtoolset-8  && \
+    yum clean all && \
+    scl enable devtoolset-8 bash  && \
+    mkdir /root/.R
+
+##  Configure R for building EpiNow2 (CXX14, etc)
+COPY Makevars.noAVX2 /root/.R/Makevars
+
+### Install RPMs needed to install R packages:
+RUN  yum -y install cairo cairo-devel cairomm-devel libjpeg-turbo-devel \
+     pango pango-devel pangomm pangomm-devel libXt-devel \
+     jq-devel libpng-devel libtiff-devel
+
+RUN sh -c 'svn checkout https://svn.osgeo.org/gdal/branches/2.2/gdal/ gdal-trunk && \
+     cd gdal-trunk/   && \
+     ./configure && \
+     make && \
+     make install && \
+     cd .. '
+
+RUN  echo 'install.packages(c("Cairo","remotes"), repos = "https://cran.rstudio.com", dependencies = TRUE); \
+     remotes::install_github("ellisp/frs-r-package/pkg", \
+     repos = "https://packagemanager.rstudio.com/cran/__linux__/centos7/latest",dependencies=TRUE)' \
+     | R --no-save
+
+RUN echo 'packages = c("tidyverse","janitor","scales","mgcv","patchwork","glue", \
+    "surveillance","ggplot2","future","httr","jsonlite","rlist","dplyr","data.table"); \
+    install.packages(pkgs = packages, \
+    repos = "https://packagemanager.rstudio.com/cran/__linux__/centos7/latest",dependencies=TRUE, force = TRUE)' \
+    | R --no-save 
+
+## Install EpiNow2 version 1.0.0
+RUN  echo 'remotes::install_github("epiforecasts/EpiNow2", \
+     ref = "caa9fc2825944e577d4ec484809342d521e5591f",     \
+     repos = "https://packagemanager.rstudio.com/cran/__linux__/centos7/latest")' \
+     | R --no-save
+
+
+COPY JFMR.withInput.R WI.rds ./
+
+
