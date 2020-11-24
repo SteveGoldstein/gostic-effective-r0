@@ -47,7 +47,7 @@ RUN yum -y install centos-release-scl && \
     mkdir /root/.R
 
 ##  Configure R for building EpiNow2 (CXX14, etc)
-COPY Makevars.noAVX2 /root/.R/Makevars
+COPY Makevars /root/.R/Makevars
 
 ### Install RPMs needed to install R packages:
 RUN  yum -y install cairo cairo-devel cairomm-devel libjpeg-turbo-devel \
@@ -67,7 +67,7 @@ RUN  echo 'install.packages(c("Cairo","remotes"), repos = "https://cran.rstudio.
      | R --no-save
 
 RUN echo 'packages = c("tidyverse","janitor","scales","mgcv","patchwork","glue", \
-    "surveillance","ggplot2","future","httr","jsonlite","rlist","dplyr","data.table"); \
+    "surveillance","ggplot2","future","httr","jsonlite","rlist","dplyr","data.table","openxlsx"); \
     install.packages(pkgs = packages, \
     repos = "https://packagemanager.rstudio.com/cran/__linux__/centos7/latest",dependencies=TRUE, force = TRUE)' \
     | R --no-save 
@@ -77,8 +77,3 @@ RUN  echo 'remotes::install_github("epiforecasts/EpiNow2", \
      ref = "caa9fc2825944e577d4ec484809342d521e5591f",     \
      repos = "https://packagemanager.rstudio.com/cran/__linux__/centos7/latest")' \
      | R --no-save
-
-
-COPY JFMR.withInput.R WI.rds ./
-
-
